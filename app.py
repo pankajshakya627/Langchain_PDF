@@ -9,11 +9,7 @@ from langchain.chains import ConversationalRetrievalChain
 from langchain.chat_models import ChatOpenAI
 from htmlTemplate import css, bot_template, user_template
 
-# css_file_path = "static/style.css"
-# local_css(css_file_path)
-
-
-def get_pdf_text(pdf_docs):
+def extract_text_from_pdf(pdf_docs):
     text = ""
     for pdf in pdf_docs:
         pdf_reader = PdfReader(pdf)
@@ -21,34 +17,33 @@ def get_pdf_text(pdf_docs):
             text += page.extract_text()
     return text
 
-def get_text_chunks(text):
+def split_text_into_chunks(text):
     text_splitter = CharacterTextSplitter(
         separator='\n',
         chunk_size=1000,
-        chunk_overlap = 200,
+        chunk_overlap=200,
         length_function=len
     )
     chunks = text_splitter.split_text(text)
     return chunks
 
-def get_vector_store(text_chunk):
-    embeddings = OpenAIEmbeddings() # It will take API and work 
-    # embeddings = HuggingFaceInstructEmbeddings(model_name="hkunlp/instructor-xl") # Need computaional power & free to use
+def create_vector_store(text_chunk):
+    embeddings = OpenAIEmbeddings()
     vectorstore = FAISS.from_texts(texts=text_chunk, embedding=embeddings)
     return vectorstore
 
-def get_conversation_chain(vector_store):
+def create_conversation_chain(vector_store):
     llm = ChatOpenAI()
     memory = ConversationBufferMemory(memory_key='chat_history', return_messages=True)
     conversation_chain = ConversationalRetrievalChain.from_llm(
-        llm = llm,
+        llm=llm,
         retriever=vector_store.as_retriever(),
-        memory = memory
+        memory=memory
     )
     return conversation_chain
 
-def handle_usrinput(usr_question):
-    response = st.session_state.conversation({'question': usr_question})
+def handle_user_input(user_question):
+    response = st.session_state.conversation({'question': user_question})
     st.session_state.chat_history = response['chat_history']
 
     for i, message in enumerate(st.session_state.chat_history):
@@ -59,44 +54,45 @@ def handle_usrinput(usr_question):
 
 def main():
     load_dotenv()
-    st.set_page_config(page_title='Chat with multiple PDFs', 
-                        page_icon=":books:")
+    st.set_page_config(page_title='Chat with multiple PDFs', page_icon=":books:")
     st.write(css, unsafe_allow_html=True)
+    hide_streamlit_style = """
+            <style>
+            #MainMenu {visibility: hidden;}
+            footer {visibility: hidden;}
+            </style>
+            """
+    st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
     if "conversation" not in st.session_state:
         st.session_state.conversation = None
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = None
 
-    st.header("Chat with multiple PDFs books:")
-    usr_question = st.text_input("Ask a question about your documents:")
-    if usr_question:
-        handle_usrinput(usr_question)
+    st.header("Chat with multiple PDF books:")
+    user_question = st.text_input("Ask a question about your documents:")
+    if user_question:
+        handle_user_input(user_question)
 
-    
     st.write(user_template.replace("{{MSG}}", "Hello Bot"), unsafe_allow_html=True)
     st.write(bot_template.replace("{{MSG}}", "Hello pankaj"), unsafe_allow_html=True)
 
     with st.sidebar:
         st.subheader("Your Documents")
-        pdf_docs = st.file_uploader(
-            "Upload your PDFs here and click on 'Process'", accept_multiple_files=True)
+        pdf_docs = st.file_uploader("Upload your PDFs here and click on 'Process'", accept_multiple_files=True)
         if st.button("Process"):
             with st.spinner("Processing"):
-                # get pdf text
-                raw_text = get_pdf_text(pdf_docs)
-                # st.write(text_chunks)
+                # Extract text from PDF
+                raw_text = extract_text_from_pdf(pdf_docs)
 
-                # get the text chunks
-                text_chunks = get_text_chunks(raw_text)
-                # st.write(text_chunks)
+                # Split text into chunks
+                text_chunks = split_text_into_chunks(raw_text)
 
                 # Create vector store
-                vector_store = get_vector_store(text_chunks)
+                vector_store = create_vector_store(text_chunks)
 
-                # create conversation chain
-                st.session_state.conversation = get_conversation_chain(vector_store)
+                # Create conversation chain
+                st.session_state.conversation = create_conversation_chain(vector_store)
 
-
-if __name__=="__main__":
+if __name__ == "__main__":
     main()
