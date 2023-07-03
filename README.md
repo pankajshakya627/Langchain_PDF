@@ -1,4 +1,4 @@
-# AI-PDF Assist
+# AI-PDF Assistant
 
 Example of working with ChatGPT API +  LangChain + HugginhFace APIs
 
